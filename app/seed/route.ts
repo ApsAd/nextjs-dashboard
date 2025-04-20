@@ -1,8 +1,11 @@
-import bcrypt from 'bcrypt';
-import postgres from 'postgres';
-import { invoices, customers, revenue, users } from '../lib/placeholder-data';
+import postgres from "postgres";
+import { invoices, customers, revenue, users } from "../lib/placeholder-data";
+import { randomBytes, scryptSync } from "crypto";
 
-const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'require' });
+// Any random string here (ideally should be atleast 16 bytes)
+const salt = randomBytes(16).toString("hex");
+
+const sql = postgres(process.env.POSTGRES_URL!, { ssl: "require" });
 
 async function seedUsers() {
   await sql`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`;
@@ -17,7 +20,9 @@ async function seedUsers() {
 
   const insertedUsers = await Promise.all(
     users.map(async (user) => {
-      const hashedPassword = await bcrypt.hash(user.password, 10);
+      const hashedPassword = scryptSync(user.password, salt, 32).toString(
+        "hex",
+      );
       return sql`
         INSERT INTO users (id, name, email, password)
         VALUES (${user.id}, ${user.name}, ${user.email}, ${hashedPassword})
@@ -110,7 +115,7 @@ export async function GET() {
       seedRevenue(),
     ]);
 
-    return Response.json({ message: 'Database seeded successfully' });
+    return Response.json({ message: "Database seeded successfully" });
   } catch (error) {
     return Response.json({ error }, { status: 500 });
   }
